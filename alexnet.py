@@ -17,6 +17,7 @@ class AlexNet(Sequential):
             L.Conv2d(384, 256, (3, 3), padding=1, stride=1),
             L.ReLU(),
             L.MaxPool2d((3, 3), padding=0, stride=2),
+            L.Flatten(),
             L.Linear(5*5*256, 4096),
             L.ReLU(),
             L.Linear(5*5*256, 4096),

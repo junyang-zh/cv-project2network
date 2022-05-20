@@ -10,7 +10,7 @@ def list2d_add(a, wa, b, wb):
             u *= wa
             u += v * wb
 
-def SGD(object):
+class SGD(object):
     '''
         Implements stochastic gradient descent, with momentum features.
 

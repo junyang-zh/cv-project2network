@@ -1,3 +1,4 @@
+from turtle import forward
 import numpy as np
 from math import *
 
@@ -471,8 +472,6 @@ class MaxPool2d(object):
         self.argmax_coor = np.argmax(input_col, axis = 2)
         max_pool_feat = input_col.max(axis = 2)
         self.input_col = input_col
-        # to be compatible with linear, save shape
-        self.N, self.C, self.out_h, self.out_w = N, C, out_h, out_w
         return max_pool_feat
 
     '''
@@ -486,8 +485,6 @@ class MaxPool2d(object):
             grad_input -- numpy array of shape(N, input_channel, H, W), gradient w.r.t input
     '''
     def backward(self, grad_output):
-        # to be compatible with linear
-        grad_output.reshape(self.N, self.C, self.out_h, self.out_w)
         ##########################################################################
         # TODO: YOUR CODE HERE
         ##########################################################################
@@ -500,3 +497,24 @@ class MaxPool2d(object):
         grad_input = grad_input.reshape(N,C,out_H,out_W, self.kernel_h, self.kernel_w).transpose(0,1,4,5,2,3)
         grad_input = col2im(grad_input, self.input.shape, self.kernel_h, self.kernel_w, stride = self.stride, pad = self.padding)
         return grad_input
+
+
+
+##########################################################################
+# MY EXTRA CODE HERE
+##########################################################################
+class Flatten(object):
+    '''
+        Used in convnets, when output images are needed to be flattened.
+        Do it by memorize the shape when forwarding.
+
+        input tensor: (N, any...)
+        output tensor: (N, M)
+    '''
+    def __init__(self):
+        pass
+    def forward(self, input):
+        self.inshape = input.shape
+        return input.reshape(self.inshape[0], -1)
+    def backward(self, grad_input):
+        return grad_input.reshape(self.inshape)
