@@ -34,11 +34,13 @@ class Linear(object):
             output -- numpy array of shape (N, output_channel)
     '''
     def forward(self, input):
-        self.input = input
+        # to be compatible with conv2d
+        self.input = input.reshape(input.shape[0], -1)
         ##################################################
         # TODO: YOUR CODE HERE: forward
         ##################################################
-        output = None
+        # output = np.dot(self.input, self.weight)
+        output = np.einsum('Ni,ij -> Nj', self.input, self.weight)
         return output
 
     '''
@@ -58,9 +60,9 @@ class Linear(object):
         ##################################################
         # TODO: YOUR CODE HERE: backward
         ##################################################        
-        grad_bias = None
-        grad_weight = None
-        grad_output = None
+        grad_bias = grad_input
+        grad_weight = np.einsum('Ni,Nj -> ij', self.input, grad_input)
+        grad_output = np.einsum('ij,Nj -> i', self.weight, grad_input)
         return grad_output, grad_weight, grad_bias
 
 '''
@@ -469,6 +471,8 @@ class MaxPool2d(object):
         self.argmax_coor = np.argmax(input_col, axis = 2)
         max_pool_feat = input_col.max(axis = 2)
         self.input_col = input_col
+        # to be compatible with linear, save shape
+        self.N, self.C, self.out_h, self.out_w = N, C, out_h, out_w
         return max_pool_feat
 
     '''
@@ -482,6 +486,8 @@ class MaxPool2d(object):
             grad_input -- numpy array of shape(N, input_channel, H, W), gradient w.r.t input
     '''
     def backward(self, grad_output):
+        # to be compatible with linear
+        grad_output.reshape(self.N, self.C, self.out_h, self.out_w)
         ##########################################################################
         # TODO: YOUR CODE HERE
         ##########################################################################
