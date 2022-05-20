@@ -35,13 +35,12 @@ class Linear(object):
             output -- numpy array of shape (N, output_channel)
     '''
     def forward(self, input):
-        # to be compatible with conv2d
-        self.input = input.reshape(input.shape[0], -1)
+        self.input = input
         ##################################################
         # TODO: YOUR CODE HERE: forward
         ##################################################
         # output = np.dot(self.input, self.weight)
-        output = np.einsum('Ni,ij -> Nj', self.input, self.weight)
+        output = np.einsum('Ni,io -> No', self.input, self.weight)
         return output
 
     '''
@@ -62,8 +61,8 @@ class Linear(object):
         # TODO: YOUR CODE HERE: backward
         ##################################################        
         grad_bias = grad_input
-        grad_weight = np.einsum('Ni,Nj -> ij', self.input, grad_input)
-        grad_output = np.einsum('ij,Nj -> i', self.weight, grad_input)
+        grad_weight = np.einsum('Ni,No -> io', self.input, grad_input)
+        grad_output = np.einsum('io,No -> Ni', self.weight, grad_input)
         return grad_output, grad_weight, grad_bias
 
 '''
