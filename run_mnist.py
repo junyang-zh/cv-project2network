@@ -1,11 +1,16 @@
 #%% Preprocess and download datasets
 
 # Variables
+MODEL = 'ResNet18'
+
 DATASET_PATH = './data/'
-RESULT_PATH = './result/'
+RESULT_PATH = './result_{}/'.format(MODEL)
 
 EPOCHS = 15
-BATCH_SIZE = 16
+BATCH_SIZE = 64
+
+LR = 1e-7
+MOMENTUM = 0.9
 
 # Import the necessary libraries
 import numpy as np
@@ -19,24 +24,37 @@ from tqdm import tqdm
 from torchvision import datasets, transforms
 
 # Define a transform to normalize the data
-transform = transforms.Compose([transforms.ToTensor(),
-                                # transforms.Resize((224, 224)),
-                                transforms.Normalize((0.5), (0.5))
-                               ])
+if MODEL == 'LeNet': # 28x28
+    transform = transforms.Compose([transforms.ToTensor(),
+                                    transforms.Normalize((0.5), (0.5))
+                                    ])
+else: # 224x224
+    transform = transforms.Compose([transforms.ToTensor(),
+                                    transforms.Resize((224, 224)),
+                                    transforms.Normalize((0.5), (0.5))
+                                    ])
 
 # Download and load the training data
 trainset = datasets.MNIST(DATASET_PATH, download = True, train = True, transform = transform)
 testset = datasets.MNIST(DATASET_PATH, download = True, train = False, transform = transform)
 trainloader = torch.utils.data.DataLoader(trainset, batch_size = BATCH_SIZE, shuffle = True)
-testloader = torch.utils.data.DataLoader(testset, batch_size = BATCH_SIZE, shuffle = True)
+testloader = torch.utils.data.DataLoader(testset, batch_size = 64, shuffle = True)
 
 #%% Define the model and the optimizer
 from alexnet import AlexNet
 from lenet import LeNet
+from resnet import resnet18
 from optim import SGD
 
-model = LeNet(input_channel=1, output_class=10)
-optimizer = SGD(model, lr=1e-5, momentum=0.9)
+if MODEL == 'LeNet':
+    model = LeNet(input_channel=1, output_class=10)
+elif MODEL == 'AlexNet':
+    model = AlexNet(input_channel=1, output_class=10)
+elif MODEL == 'ResNet18':
+    model = resnet18(input_channel=1, output_class=10)
+else:
+    print('No such model {}, please indicate another'.format(MODEL))
+optimizer = SGD(model, lr=LR, momentum=MOMENTUM)
 
 #%% Training and evaluating process
 
@@ -52,14 +70,17 @@ for e in range(EPOCHS):
 
     # Training pass
     print("Training pass:")
-    for data in tqdm(trainloader, total=len(trainloader)):
+    for data in (tbar := tqdm(trainloader, total=len(trainloader))):
         images, labels = data[0].numpy(), data[1].numpy()
 
-        prob, loss = model.forward(images, labels)
+        prob, loss = model.forward(images, labels, train_mode=True)
         model.backward(loss)
         optimizer.step()
         
-        running_loss += np.sum(loss)
+        totloss = sum(loss)
+        running_loss += totloss
+
+        tbar.set_description("Running loss {:.2f}".format(totloss))
     
     # Testing pass
     print("Validation pass:")
@@ -68,7 +89,7 @@ for e in range(EPOCHS):
     for data in tqdm(testloader, total=len(testloader)):
         images, labels = data[0].numpy(), data[1].numpy()
         
-        prob, loss = model.forward(images, labels)
+        prob, loss = model.forward(images, labels, train_mode=False)
         test_loss += np.sum(loss)
         
         top_class = np.argmax(prob, axis=1)
@@ -80,7 +101,7 @@ for e in range(EPOCHS):
     accuracies.append(accuracy/len(testloader))
     
     epoch_times.append(time.process_time_ns())
-    print("Training loss: {:.3f}..".format(running_loss/len(trainloader)),
+    print("Train loss: {:.3f}..".format(running_loss/len(trainloader)),
           "Test loss: {:.3f}..".format(test_loss/len(testloader)),
           "Test Accuracy: {:.3f}".format(accuracy/len(testloader)),
           "Cur time(ns): {}".format(epoch_times[-1]))
@@ -88,7 +109,7 @@ for e in range(EPOCHS):
 #%% Evaluation
 
 fig, ax = plt.subplots(figsize=(10, 8))
-ax.plot(train_losses, label="Training loss")
+ax.plot(train_losses, label="Train loss")
 ax.plot(test_losses, label="Validation loss")
 ax.set_xlabel("Epoch")
 ax.set_ylabel("Cross Entropy Loss")

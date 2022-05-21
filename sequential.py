@@ -1,3 +1,5 @@
+import pylayer as L
+
 class Sequential(object):
     '''
         The sequential model is a list of layers in it's order,
@@ -18,11 +20,16 @@ class Sequential(object):
         self.layers = layers
         self.param_grads = None # will be a list of tuples containing tensors
     
-    def forward(self, input, gt_label):
+    def forward(self, input, gt_label, train_mode=True):
         x = input
         # forward the layers except the last one
         for l in self.layers[:-1]:
-            x = l.forward(x)
+            # print(x.shape)
+            # print(type(l))
+            if (type(l) in (L.BatchNorm1d, L.BatchNorm2d, L.BottleNeck, L.BasicBlock)):
+                x = l.forward(x, train_mode)
+            else:
+                x = l.forward(x)
         # the last one is criterion (CrossEntropyLossWithSoftmax)
         loss = self.layers[-1].forward(x, gt_label)
         return self.layers[-1].prob, loss
@@ -30,7 +37,7 @@ class Sequential(object):
     def backward(self, grad):
         grads = []
         for l in reversed(self.layers):
-            # print(type(grad), grad.shape)
+            # print(grad.shape)
             # print(type(l))
             bwd_ret = l.backward(grad)
             if (isinstance(bwd_ret, tuple)):

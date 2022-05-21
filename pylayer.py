@@ -385,3 +385,169 @@ class Flatten(object):
         return input.reshape(self.inshape[0], -1)
     def backward(self, grad_input):
         return grad_input.reshape(self.inshape)
+
+class BatchNorm2d(object):
+
+    def __init__(self, input_channel, momentum = 0.9):
+        self.input_channel = input_channel
+        self.momentum = momentum
+        self.eps = 1e-3
+        self.init_param()
+
+    def init_param(self):
+        self.r_mean = np.zeros((self.input_channel, 1, 1)).astype(np.float32)
+        self.r_var = np.ones((self.input_channel, 1, 1)).astype(np.float32)
+        self.beta = np.zeros((self.input_channel, 1, 1)).astype(np.float32)
+        self.gamma = (np.random.rand(self.input_channel, 1, 1) * sqrt(2.0/(self.input_channel))).astype(np.float32)
+
+    def forward(self, input, train):
+        self.input = input
+        if train:
+            mu = np.mean(input, axis =0)
+            var = np.var(input, axis =0)
+            self.mu = mu
+            self.var = var
+            self.r_mean = self.r_mean * self.momentum + (1 - self.momentum) * mu
+            self.r_var = self.r_var * self.momentum + (1 - self.momentum) * var
+            self.input_norm = (input - mu[None,:]) / np.sqrt(var[None,:] + self.eps)
+            output = (self.input_norm * self.gamma) + self.beta
+        else:
+            input_norm = (input - self.r_mean[None,:])/np.sqrt(self.r_var[None,:] + self.eps)
+            output = (input_norm * self.gamma[None,:]) + self.beta[None,:]
+        return output
+    
+    def backward(self, grad_output):
+        N = grad_output.shape[0]
+        dxdhat = self.gamma[None,:] * grad_output
+        output_term1 =  (1./N) * 1./np.sqrt(self.var + self.eps)
+        output_term2 = N * dxdhat
+        output_term3 = np.sum(dxdhat, axis=0)
+        output_term4 = self.input_norm * np.sum(dxdhat * self.input_norm, axis=0)
+        grad_input = output_term1 * (output_term2 - output_term3 - output_term4)
+        grad_gamma = np.einsum('ncij->c' , grad_output * self.input_norm).reshape(-1, 1, 1)
+        grad_beta = np.einsum('ncij->c' , grad_output).reshape(-1, 1, 1)
+        return grad_input, grad_gamma, grad_beta
+
+class BasicBlock(object):
+    expansion = 1
+    def __init__(self, in_channels, out_channels, stride=1, downsample=None):
+        super(BasicBlock, self).__init__()
+        # Layers
+        self.conv1 = Conv2d(in_channels, out_channels, (3, 3), padding=1, stride=stride)#, bias=False)
+        self.bn1 = BatchNorm2d(out_channels)
+        self.conv2 = Conv2d(out_channels, out_channels, (3, 3), padding=1, stride=1)#, bias=False)
+        self.bn2 = BatchNorm2d(out_channels)
+        self.relu1, self.relu2 = ReLU(), ReLU()
+        self.downsample = downsample
+
+        self.params_ref = [
+            self.conv1.weight, self.conv1.bias, self.bn1.gamma, self.bn1.beta,
+            self.conv2.weight, self.conv2.bias, self.bn2.gamma, self.bn2.beta,
+        ]
+        if self.downsample:
+            self.params_ref += [
+                self.downsample[0].weight, self.downsample[0].bias,
+                self.downsample[1].gamma, self.downsample[1].beta,
+            ]
+
+    def forward(self, input, train_mode=True):
+        x = input
+        residual = self.conv1.forward(input)
+        residual = self.bn1.forward(residual, train_mode)
+        residual = self.relu1.forward(residual)
+        residual = self.conv2.forward(residual)
+        residual = self.bn2.forward(residual, train_mode)
+        if self.downsample:
+            x = self.downsample[0].forward(x)
+            x = self.downsample[1].forward(x, train_mode)
+        x += residual
+        x = self.relu2.forward(x)
+        return x
+    
+    def backward(self, grad_output):
+        grad_output = self.relu2.backward(grad_output)
+        grad_x = grad_output
+        grad_res = grad_output
+        if self.downsample:
+            grad_x, gw_bn_ds, gb_bn_ds = self.downsample[1].backward(grad_x)
+            grad_x, gw_conv_ds, gb_conv_ds = self.downsample[0].backward(grad_x)
+        grad_res, gw_bn2, gb_bn2 = self.bn2.backward(grad_res)
+        grad_res, gw_conv2, gb_conv2 = self.conv2.backward(grad_res)
+        grad_res = self.relu1.backward(grad_res)
+        grad_res, gw_bn1, gb_bn1 = self.bn1.backward(grad_res)
+        grad_res, gw_conv1, gb_conv1 = self.conv1.backward(grad_res)
+        grad_input = grad_x + grad_res
+        output_grads = [
+            gw_conv1, gb_conv1, gw_bn1, gb_bn1,
+            gw_conv2, gb_conv2, gw_bn2, gb_bn2
+        ]
+        if self.downsample:
+            output_grads += [gw_conv_ds, gb_conv_ds, gw_bn_ds, gb_bn_ds]
+        return grad_input, *output_grads
+
+class BottleNeck(object):
+    expansion = 4
+    def __init__(self, in_channels, out_channels, stride=1, downsample=None):
+        super(BottleNeck, self).__init__()
+        # layers
+        self.conv1 = Conv2d(in_channels, out_channels, (1, 1))#, bias=False)
+        self.bn1 = BatchNorm2d(out_channels)
+        self.conv2 = Conv2d(out_channels, out_channels, (3, 3), padding=1, stride=stride)#, bias=False)
+        self.bn2 = BatchNorm2d(out_channels)
+        self.conv3 = Conv2d(out_channels, out_channels*self.expansion, (1, 1))#, bias=False)
+        self.bn3 = BatchNorm2d(out_channels*self.expansion)
+        self.relu1, self.relu2, self.relu3 = ReLU(), ReLU(), ReLU()
+        self.downsample = downsample
+
+        self.params_ref = [
+            self.conv1.weight, self.conv1.bias, self.bn1.gamma, self.bn1.beta,
+            self.conv2.weight, self.conv2.bias, self.bn2.gamma, self.bn2.beta,
+            self.conv3.weight, self.conv3.bias, self.bn3.gamma, self.bn3.beta,
+        ]
+        if self.downsample:
+            self.params_ref += [
+                self.downsample[0].weight, self.downsample[0].bias,
+                self.downsample[1].gamma, self.downsample[1].beta,
+            ]
+
+    def forward(self, input, train_mode=True):
+        x = input
+        residual = self.conv1.forward(input)
+        residual = self.bn1.forward(residual)
+        residual = self.relu1.forward(residual)
+        residual = self.conv2.forward(residual)
+        residual = self.bn2.forward(residual)
+        residual = self.relu2.forward(residual)
+        residual = self.conv3.forward(residual)
+        residual = self.bn3.forward(residual)
+        if self.downsample:
+            x = self.downsample[0].forward(x)
+            x = self.downsample[1].forward(x, train_mode)
+        x += residual
+        x = self.relu3.forward(x)
+        return x
+    
+    def backward(self, grad_output):
+        grad_output = self.relu3.backward(grad_output)
+        grad_x = grad_output
+        grad_res = grad_output
+        if self.downsample:
+            grad_x, gw_bn_ds, gb_bn_ds = self.downsample[1].backward(grad_x)
+            grad_x, gw_conv_ds, gb_conv_ds = self.downsample[0].backward(grad_x)
+        grad_res, gw_bn3, gb_bn3 = self.bn3.backward(grad_res)
+        grad_res, gw_conv3, gb_conv3 = self.conv3.backward(grad_res)
+        grad_res = self.relu2.backward(grad_res)
+        grad_res, gw_bn2, gb_bn2 = self.bn2.backward(grad_res)
+        grad_res, gw_conv2, gb_conv2 = self.conv2.backward(grad_res)
+        grad_res = self.relu1.backward(grad_res)
+        grad_res, gw_bn1, gb_bn1 = self.bn1.backward(grad_res)
+        grad_res, gw_conv1, gb_conv1 = self.conv1.backward(grad_res)
+        grad_input = grad_x + grad_res
+        output_grads = [
+            gw_conv1, gb_conv1, gw_bn1, gb_bn1,
+            gw_conv2, gb_conv2, gw_bn2, gb_bn2,
+            gw_conv3, gb_conv3, gw_bn3, gb_bn3
+        ]
+        if self.downsample:
+            output_grads += [gw_conv_ds, gb_conv_ds, gw_bn_ds, gb_bn_ds]
+        return grad_input, *output_grads

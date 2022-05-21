@@ -40,6 +40,8 @@ class SGD(object):
                 self.params_ref.append((l.weight, l.bias))
             elif (isinstance(l, L.BatchNorm1d)):
                 self.params_ref.append((l.gamma, l.beta))
+            elif (isinstance(l, L.BatchNorm2d)):
+                self.params_ref.append((l.gamma, l.beta))
             elif (isinstance(l, L.ReLU)):
                 self.params_ref.append(())
             elif (isinstance(l, L.CrossEntropyLossWithSoftmax)):
@@ -50,7 +52,10 @@ class SGD(object):
                 self.params_ref.append(())
             elif (isinstance(l, L.Flatten)):
                 self.params_ref.append(())
-
+            elif (isinstance(l, L.BasicBlock)):
+                self.params_ref.append(tuple(l.params_ref))
+            elif (isinstance(l, L.BottleNeck)):
+                self.params_ref.append(tuple(l.params_ref))
 
     def step(self):
         if (self.momentum > 0. and self.last_step_grads != None):
