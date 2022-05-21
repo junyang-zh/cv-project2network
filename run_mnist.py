@@ -2,10 +2,10 @@
 
 # Variables
 DATASET_PATH = './data/'
-RESULT_PATH = './result_full2/'
+RESULT_PATH = './result/'
 
 EPOCHS = 15
-BATCH_SIZE = 1
+BATCH_SIZE = 16
 
 # Import the necessary libraries
 import numpy as np
@@ -36,7 +36,7 @@ from lenet import LeNet
 from optim import SGD
 
 model = LeNet(input_channel=1, output_class=10)
-optimizer = SGD(model, lr=1e-11, momentum=0.9)
+optimizer = SGD(model, lr=1e-5, momentum=0.9)
 
 #%% Training and evaluating process
 
@@ -54,12 +54,12 @@ for e in range(EPOCHS):
     print("Training pass:")
     for data in tqdm(trainloader, total=len(trainloader)):
         images, labels = data[0].numpy(), data[1].numpy()
-        
+
         prob, loss = model.forward(images, labels)
         model.backward(loss)
         optimizer.step()
         
-        running_loss += loss.item()
+        running_loss += np.sum(loss)
     
     # Testing pass
     print("Validation pass:")
@@ -69,7 +69,7 @@ for e in range(EPOCHS):
         images, labels = data[0].numpy(), data[1].numpy()
         
         prob, loss = model.forward(images, labels)
-        test_loss += loss.item()
+        test_loss += np.sum(loss)
         
         top_class = np.argmax(prob, axis=1)
         equals = (top_class == labels)
@@ -97,8 +97,7 @@ ax2 = ax.twinx()
 ax2.plot(np.array(accuracies)*100, label="Accuracy", color='g')
 ax2.set_ylabel("Accuracy (%)")
 plt.title("Training procedure")
-# plt.savefig(RESULT_PATH + 'training_proc.png', dpi = 100)
-plt.show()
+plt.savefig(RESULT_PATH + 'training_proc.png', dpi = 100)
 
 proc_results = {
     'train_losses': train_losses,
@@ -107,6 +106,6 @@ proc_results = {
     'accuracies': accuracies,
 }
 
-print(proc_results)
-#with open(RESULT_PATH + 'torch_results.json', 'w+') as f:
-#    json.dump(proc_results, f)
+# print(proc_results)
+with open(RESULT_PATH + 'torch_results.json', 'w+') as f:
+    json.dump(proc_results, f)

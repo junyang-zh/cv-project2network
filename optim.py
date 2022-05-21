@@ -1,8 +1,9 @@
 import pylayer as L
 
 '''
-    utility: pointwise add two "2-d" lists with weight
-    a = a * wa + b * wb
+    utility: pointwise two "2-d" lists with weight
+    using operator op
+    a = a * wa op b * wb
 '''
 def list2d_add(a, wa, b, wb):
     for x, y in zip(a, b):
@@ -11,6 +12,13 @@ def list2d_add(a, wa, b, wb):
             # print('\t', u.shape, v.shape)
             u *= wa
             u += v * wb
+def list2d_sub(a, wa, b, wb):
+    for x, y in zip(a, b):
+        # print(len(x), len(y))
+        for u, v in zip(x, y):
+            # print('\t', u.shape, v.shape)
+            u *= wa
+            u -= v * wb
 
 class SGD(object):
     '''
@@ -46,7 +54,7 @@ class SGD(object):
 
     def step(self):
         if (self.momentum > 0. and self.last_step_grads != None):
-            list2d_add( self.model.param_grads, 1. - self.momentum,
+            list2d_add(self.model.param_grads, 1. - self.momentum,
                         self.last_step_grads, self.momentum)
-        list2d_add(self.params_ref, 1., self.model.param_grads, self.lr)
-        self.last_step_grads = self.model.param_grads
+        list2d_sub(self.params_ref, 1., self.model.param_grads, self.lr)
+        self.last_step_grads = self.model.param_grads.copy()
