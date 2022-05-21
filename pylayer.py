@@ -60,7 +60,7 @@ class Linear(object):
         ##################################################
         # TODO: YOUR CODE HERE: backward
         ##################################################        
-        grad_bias = grad_input
+        grad_bias = np.einsum('No -> o', grad_input)
         grad_weight = np.einsum('Ni,No -> io', self.input, grad_input)
         grad_output = np.einsum('io,No -> Ni', self.weight, grad_input)
         return grad_output, grad_weight, grad_bias

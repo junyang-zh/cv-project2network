@@ -30,8 +30,8 @@ class Sequential(object):
     def backward(self, grad):
         grads = []
         for l in reversed(self.layers):
-            print(type(grad), grad.shape)
-            print(type(l))
+            # print(type(grad), grad.shape)
+            # print(type(l))
             bwd_ret = l.backward(grad)
             if (isinstance(bwd_ret, tuple)):
                 grad = bwd_ret[0]
@@ -39,4 +39,6 @@ class Sequential(object):
                     grads.append(bwd_ret[1:])
             else: # only grad_input
                 grad = bwd_ret
+                grads.append(())
+        grads.reverse()
         self.param_grads = grads

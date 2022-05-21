@@ -6,7 +6,9 @@ import pylayer as L
 '''
 def list2d_add(a, wa, b, wb):
     for x, y in zip(a, b):
+        # print(len(x), len(y))
         for u, v in zip(x, y):
+            # print('\t', u.shape, v.shape)
             u *= wa
             u += v * wb
 
@@ -38,10 +40,12 @@ class SGD(object):
                 self.params_ref.append((l.weight, l.bias))
             elif (isinstance(l, L.MaxPool2d)):
                 self.params_ref.append(())
+            elif (isinstance(l, L.Flatten)):
+                self.params_ref.append(())
 
 
     def step(self):
-        if (self.momentum > 0.):
+        if (self.momentum > 0. and self.last_step_grads != None):
             list2d_add( self.model.param_grads, 1. - self.momentum,
                         self.last_step_grads, self.momentum)
         list2d_add(self.params_ref, 1., self.model.param_grads, self.lr)
