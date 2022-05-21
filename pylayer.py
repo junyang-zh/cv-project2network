@@ -316,13 +316,11 @@ class Conv2d:
         FN, C, FH, FW = self.weight.shape
         dout = dout.transpose(0, 2, 3, 1).reshape(-1, FN)
 
-        #1
         db = np.sum(dout, axis=0)
-        #2
+
         dW = np.dot(self.col.T, dout)
         dW = dW.transpose(1, 0).reshape(FN, C, FH, FW)
         
-        #3
         dcol = np.dot(dout, self.col_W.T)
         dx = col2im(dcol, self.x.shape, FH, FW, self.stride, self.pad)
 
@@ -398,7 +396,7 @@ class BatchNorm2d(object):
         self.r_mean = np.zeros((self.input_channel, 1, 1)).astype(np.float32)
         self.r_var = np.ones((self.input_channel, 1, 1)).astype(np.float32)
         self.beta = np.zeros((self.input_channel, 1, 1)).astype(np.float32)
-        self.gamma = (np.random.rand(self.input_channel, 1, 1) * sqrt(2.0/(self.input_channel))).astype(np.float32)
+        self.gamma = np.ones((self.input_channel, 1, 1)).astype(np.float32)
 
     def forward(self, input, train):
         self.input = input
@@ -424,9 +422,10 @@ class BatchNorm2d(object):
         output_term3 = np.sum(dxdhat, axis=0)
         output_term4 = self.input_norm * np.sum(dxdhat * self.input_norm, axis=0)
         grad_input = output_term1 * (output_term2 - output_term3 - output_term4)
-        grad_gamma = np.einsum('ncij->c' , grad_output * self.input_norm).reshape(-1, 1, 1) / (N*H*W)
-        grad_beta = np.einsum('ncij->c' , grad_output).reshape(-1, 1, 1) / (N*H*W)
-        return grad_input, grad_gamma, grad_beta
+        # grad_gamma = np.einsum('ncij->c' , grad_output * self.input_norm).reshape(-1, 1, 1) / (N*H*W)
+        # grad_beta = np.einsum('ncij->c' , grad_output).reshape(-1, 1, 1) / (N*H*W)
+        
+        return grad_input, np.zeros_like(self.gamma), np.zeros_like(self.beta)#, grad_gamma, grad_beta
 
 class BasicBlock(object):
     expansion = 1
