@@ -417,15 +417,15 @@ class BatchNorm2d(object):
         return output
     
     def backward(self, grad_output):
-        N = grad_output.shape[0]
+        N, C, H, W = grad_output.shape
         dxdhat = self.gamma[None,:] * grad_output
         output_term1 =  (1./N) * 1./np.sqrt(self.var + self.eps)
         output_term2 = N * dxdhat
         output_term3 = np.sum(dxdhat, axis=0)
         output_term4 = self.input_norm * np.sum(dxdhat * self.input_norm, axis=0)
         grad_input = output_term1 * (output_term2 - output_term3 - output_term4)
-        grad_gamma = np.einsum('ncij->c' , grad_output * self.input_norm).reshape(-1, 1, 1)
-        grad_beta = np.einsum('ncij->c' , grad_output).reshape(-1, 1, 1)
+        grad_gamma = np.einsum('ncij->c' , grad_output * self.input_norm).reshape(-1, 1, 1) / (N*H*W)
+        grad_beta = np.einsum('ncij->c' , grad_output).reshape(-1, 1, 1) / (N*H*W)
         return grad_input, grad_gamma, grad_beta
 
 class BasicBlock(object):
