@@ -388,31 +388,24 @@ class BatchNorm2d(object):
 
     def __init__(self, input_channel, momentum = 0.9):
         self.input_channel = input_channel
-        self.momentum = momentum
+        # self.momentum = momentum
         self.eps = 1e-3
         self.init_param()
 
     def init_param(self):
-        self.r_mean = np.zeros((self.input_channel, 1, 1)).astype(np.float32)
-        self.r_var = np.ones((self.input_channel, 1, 1)).astype(np.float32)
+        # self.r_mean = np.zeros((self.input_channel, 1, 1)).astype(np.float32)
+        # self.r_var = np.ones((self.input_channel, 1, 1)).astype(np.float32)
         self.beta = np.zeros((self.input_channel, 1, 1)).astype(np.float32)
         self.gamma = np.ones((self.input_channel, 1, 1)).astype(np.float32)
 
     def forward(self, input, train):
         self.input = input
-        if train:
-            mu = np.mean(input, axis =0)
-            var = np.var(input, axis =0)
-            self.mu = mu
-            self.var = var
-            self.r_mean = self.r_mean * self.momentum + (1 - self.momentum) * mu
-            self.r_var = self.r_var * self.momentum + (1 - self.momentum) * var
-            self.input_norm = (input - mu[None,:]) / np.sqrt(var[None,:] + self.eps)
-            output = (self.input_norm * self.gamma) + self.beta
-        else:
-            input_norm = (input - self.r_mean[None,:])/np.sqrt(self.r_var[None,:] + self.eps)
-            output = (input_norm * self.gamma[None,:]) + self.beta[None,:]
-        return output
+        mu = np.mean(input, axis =0)
+        var = np.var(input, axis =0)
+        self.mu = mu
+        self.var = var
+        self.input_norm = (input - mu[None,:]) / np.sqrt(var[None,:] + self.eps)
+        return self.input_norm
     
     def backward(self, grad_output):
         N, C, H, W = grad_output.shape
@@ -424,7 +417,6 @@ class BatchNorm2d(object):
         grad_input = output_term1 * (output_term2 - output_term3 - output_term4)
         # grad_gamma = np.einsum('ncij->c' , grad_output * self.input_norm).reshape(-1, 1, 1) / (N*H*W)
         # grad_beta = np.einsum('ncij->c' , grad_output).reshape(-1, 1, 1) / (N*H*W)
-        
         return grad_input, np.zeros_like(self.gamma), np.zeros_like(self.beta)#, grad_gamma, grad_beta
 
 class BasicBlock(object):
