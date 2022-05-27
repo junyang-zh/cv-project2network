@@ -51,6 +51,7 @@ if MODEL == 'LeNet':
 elif MODEL == 'AlexNet':
     model = AlexNet(input_channel=1, output_class=10)
 elif MODEL == 'ResNet18':
+    LR = 1e-6
     model = resnet18(input_channel=1, output_class=10)
 else:
     print('No such model {}, please indicate another'.format(MODEL))

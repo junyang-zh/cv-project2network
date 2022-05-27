@@ -384,40 +384,28 @@ class Flatten(object):
     def backward(self, grad_input):
         return grad_input.reshape(self.inshape)
 
-class BatchNorm2d(object):
-
+class BatchNorm2d(BatchNorm1d):
     def __init__(self, input_channel, momentum = 0.9):
-        self.input_channel = input_channel
-        # self.momentum = momentum
-        self.eps = 1e-3
-        self.init_param()
-
-    def init_param(self):
-        # self.r_mean = np.zeros((self.input_channel, 1, 1)).astype(np.float32)
-        # self.r_var = np.ones((self.input_channel, 1, 1)).astype(np.float32)
-        self.beta = np.zeros((self.input_channel, 1, 1)).astype(np.float32)
-        self.gamma = np.ones((self.input_channel, 1, 1)).astype(np.float32)
-
+        super(BatchNorm2d, self).__init__(input_channel, momentum)
+    @staticmethod
+    def to_inner(tensor):
+        tensor = tensor.transpose(0, 2, 3, 1)
+        tensor = tensor.reshape(-1, tensor.shape[-1])
+        # tensor is NHW, C
+        return tensor
+    def to_outer(self, tensor):
+        # tensor is NHW, C
+        N, C, H, W = self.in_shape
+        tensor = tensor.reshape(N, H, W, C)
+        tensor = tensor.transpose(0, 3, 1, 2)
+        return tensor
     def forward(self, input, train):
-        self.input = input
-        mu = np.mean(input, axis =0)
-        var = np.var(input, axis =0)
-        self.mu = mu
-        self.var = var
-        self.input_norm = (input - mu[None,:]) / np.sqrt(var[None,:] + self.eps)
-        return self.input_norm
-    
+        self.in_shape = input.shape
+        output = super(BatchNorm2d, self).forward(self.to_inner(input), train)
+        return self.to_outer(output)
     def backward(self, grad_output):
-        N, C, H, W = grad_output.shape
-        dxdhat = self.gamma[None,:] * grad_output
-        output_term1 =  (1./N) * 1./np.sqrt(self.var + self.eps)
-        output_term2 = N * dxdhat
-        output_term3 = np.sum(dxdhat, axis=0)
-        output_term4 = self.input_norm * np.sum(dxdhat * self.input_norm, axis=0)
-        grad_input = output_term1 * (output_term2 - output_term3 - output_term4)
-        # grad_gamma = np.einsum('ncij->c' , grad_output * self.input_norm).reshape(-1, 1, 1) / (N*H*W)
-        # grad_beta = np.einsum('ncij->c' , grad_output).reshape(-1, 1, 1) / (N*H*W)
-        return grad_input, np.zeros_like(self.gamma), np.zeros_like(self.beta)#, grad_gamma, grad_beta
+        grad_input, grad_gamma, grad_beta = super(BatchNorm2d, self).backward(self.to_inner(grad_output))
+        return self.to_outer(grad_input), grad_gamma, grad_beta
 
 class BasicBlock(object):
     expansion = 1
